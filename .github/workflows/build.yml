@@ -1,0 +1,40 @@
+name: build-tiles
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool
+          pip install pyvalhalla==3.9.1
+
+      - name: Build tiles
+        run: ./build.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="tiles-$(date -u +%Y%m%d)-r${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" out/valhalla_tiles.tar.part-* out/valhalla_tiles.tar.sha256 \
+            --title "$TAG" --notes-file out/RELEASE_NOTES.md
