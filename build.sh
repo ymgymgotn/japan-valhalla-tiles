@@ -4,6 +4,7 @@
 set -euo pipefail
 
 PBF_URL="https://download.geofabrik.de/asia/japan-latest.osm.pbf"
+DID_URL="https://nlftp.mlit.go.jp/ksj/gml/data/A16/A16-20/A16-20_GML.zip"
 ROOT="$(pwd)"
 WORK="$ROOT/work"
 OUT="$ROOT/out"
@@ -20,11 +21,29 @@ echo "data timestamp: ${DATA_TS:-unknown}"
 echo "== filter: roads and ferries only (routing graph)"
 osmium tags-filter japan-latest.osm.pbf w/highway w/route=ferry r/route=ferry -o roads.osm.pbf --overwrite
 
+# MAPPITA: car speed = speed limit x factor (prefecture x motorway/other x inside/outside DID). See README.
+echo "== prefecture boundaries (OSM admin_level=4)"
+osmium tags-filter japan-latest.osm.pbf r/boundary=administrative -o adm.osm.pbf --overwrite
+osmium export adm.osm.pbf -f geojsonseq --geometry-types=polygon -o adm.geojsonseq --overwrite
+python "$ROOT/mappita/prefs_from_osm.py" adm.geojsonseq prefs.geojson
+rm -f adm.osm.pbf adm.geojsonseq
+
+echo "== densely inhabited districts (DID, Kokudo Suuchi Joho A16, 2020)"
+curl -fsSL -o A16-20_GML.zip "$DID_URL"
+unzip -o -j A16-20_GML.zip A16-20_00_DID.geojson
+rm -f A16-20_GML.zip
+
+echo "== tag roads with prefecture and DID"
+python "$ROOT/mappita/tag_ways.py" roads.osm.pbf roads_mp.osm.pbf prefs.geojson A16-20_00_DID.geojson
+mv roads_mp.osm.pbf roads.osm.pbf
+rm -f prefs.geojson A16-20_00_DID.geojson
+
 echo "== config"
 valhalla_build_config \
   --mjolnir-tile-dir "$WORK/tiles" \
   --mjolnir-tile-extract "$WORK/valhalla_tiles.tar" \
   --mjolnir-admin "$WORK/admins.sqlite" \
+  --mjolnir-graph-lua-name "$ROOT/mappita/graph_mappita.lua" \
   --mjolnir-concurrency "$(nproc)" > valhalla.json
 
 echo "== admins (country/region rules such as driving on the left) from the full extract"
@@ -53,6 +72,9 @@ Valhalla tiles for Japan.
 - Source: ${PBF_URL} (processed by Geofabrik GmbH)
 - Built with pyvalhalla ${VALHALLA_VERSION}
 - Graph: highways and ferries; admin boundaries from the full extract
+- Car speeds (MAPPITA): speed limit x factor by prefecture, motorway/other road and inside/outside DID (mappita/graph_mappita.lua)
+- Car speed factors are derived from: 「令和3年度 全国道路・街路交通情勢調査 一般交通量調査 箇所別基本表」(国土交通省) https://www.mlit.go.jp/road/census/r3/index.html を加工して作成
+- DID: 「国土数値情報（人口集中地区データ 2020年）」(国土交通省) https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A16-2020.html を加工して作成
 
 Rebuild: \`cat valhalla_tiles.tar.part-* > valhalla_tiles.tar && sha256sum -c valhalla_tiles.tar.sha256\`
 

@@ -9,7 +9,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +26,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y osmium-tool
-          pip install pyvalhalla==3.9.1
+          pip install pyvalhalla==3.9.1 osmium shapely
 
       - name: Build tiles
         run: ./build.sh
