@@ -12,8 +12,8 @@ mkdir -p "$WORK" "$OUT"
 cd "$WORK"
 
 echo "== download $PBF_URL"
-curl -fsSL -o japan-latest.osm.pbf "$PBF_URL"
-curl -fsSL -o japan-latest.osm.pbf.md5 "$PBF_URL.md5"
+curl -fsSL --retry 6 --retry-all-errors --retry-delay 20 -o japan-latest.osm.pbf "$PBF_URL"
+curl -fsSL --retry 6 --retry-all-errors --retry-delay 20 -o japan-latest.osm.pbf.md5 "$PBF_URL.md5"
 md5sum -c japan-latest.osm.pbf.md5
 DATA_TS="$(osmium fileinfo -g header.option.osmosis_replication_timestamp japan-latest.osm.pbf || true)"
 echo "data timestamp: ${DATA_TS:-unknown}"
@@ -29,7 +29,7 @@ python "$ROOT/mappita/prefs_from_osm.py" adm.geojsonseq prefs.geojson
 rm -f adm.osm.pbf adm.geojsonseq
 
 echo "== densely inhabited districts (DID, Kokudo Suuchi Joho A16, 2020)"
-curl -fsSL -o A16-20_GML.zip "$DID_URL"
+curl -fsSL --retry 6 --retry-all-errors --retry-delay 20 -o A16-20_GML.zip "$DID_URL"
 unzip -o -j A16-20_GML.zip A16-20_00_DID.geojson
 rm -f A16-20_GML.zip
 
